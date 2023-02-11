@@ -11,6 +11,7 @@
 #define MAX(a,b) ((a) < (b)) ? b : a
 #define MIN(a,b) ((a) > (b)) ? b : a
 #define MS(x) x / 1000.0f
+#define N_OSC 2
 
 Midi midi;
 int active_voices = 0;
@@ -24,38 +25,91 @@ inline float midi_to_freq(int note){
     return powf(2, ((float) note - 69) / 12.f) * 440.f;
 }
 
+using Samples = unsigned int;
+enum EnvelopePhase {Attack, Decay, Sustain, Release};
+
+struct MidiNotes {
+    uint8_t* note;
+    uint8_t* velocity;
+    Samples* start_time;
+};
+
+struct MixSpec {
+    uint8_t* in_idx;
+    uint8_t* out_idx;
+    float*   pct;
+    int length;
+};
+
+struct SampleBuffers {
+    int buffer_length;
+    int stride;
+    float* buffers;
+};
+
+struct Oscillators {
+    float* freq;    // in hertz
+    float* ampl;    // % in 0 - 1
+    float* phase;   // in % of cycle
+    uint8_t length;
+    void* data;
+};
 
 struct Filter {
-    float s1;
-    float s2;
-    float cutoff;
-    float resonance;
-    float cutoff_env;
-    float resonance_env;
+    float* cutoff;           // samples (Hz * dt)
+    float* resonance;        // pct
+    float* cutoff_env;       // additive sampess
+    float* resonance_env;    // additive pct
+    void* data;
 };
 
 
 struct Envelope {
-    float attack;
-    float decay;
-    float sustain;
-    float release;
+    Samples* attack;           // samples
+    Samples* decay;            // samples
+    float*   sustain;          // percent
+    Samples* release;          // samples
+    void* data;
 };
 
 
 
-struct Voice{
-    float frequency;
-    float detune_amount;
-    int elapsed_samples;
-    float velocity;
-    float key;
-    Envelope amplitude_env;
-    Envelope filter_env;
-    Filter filter;
+struct Voice {
+    uint8_t buffer_id;
+    uint8_t oscillator_id[N_OSC];
+    uint8_t filter_id;
+    uint8_t filter_env_id;
+    uint8_t amplitude_env_id;
 };
 
-Voice voice[MAX_VOICES];
+
+struct Voices {
+    Voice* voices;
+    uint8_t n_voices;
+};
+
+float next_sample(float freq, float phase){
+    return sinf(M_2PI* freq * phase);
+}
+
+void write_oscillators_into_buffer(Oscillators& oscillators,
+                                   SampleBuffers& buffers,
+                                   float delta_time){
+    buffers.stride = oscillators.length;
+    for (int s = 0; s < buffers.buffer_length; s++){
+        for (int osc=0; osc < oscillators.length; osc++){
+
+            int offset = osc + s * buffers.stride;
+            oscillators.phase[osc] = oscillators.phase[osc] + delta_time;
+            buffers.buffers[offset] = next_sample(oscillators.freq[osc], oscillators.phase[osc]);
+            oscillators.phase[osc] = oscillators.phase[osc] > 1 ? oscillators.phase[osc] - 1.0f, oscillators.phase[osc];
+
+        }
+    }
+}
+
+
+//void do_mix(SampleBuffers& )
 
 
 //enum FilterMode {
@@ -76,7 +130,7 @@ Voice voice[MAX_VOICES];
 //        FilterMode mode = Lowpass){
 //        float prewarped_cutoff = 2 * tanf(cutoff * sample_period / 2) / sample_period;
 //        float r = fminf(fmaxf(1 - resonance, -1 + FLT_MIN), 0);
-//        this->g = prewarped_cutoff * sample_period / 2;
+//        this->g = prewarped_cutoff * sam ple_period / 2;
 //        this->g1 = 2 * r + this->g;
 //        this->d = 1.0f/(1 + this->g1 * this->g1);
 //        this->mode = mode;
@@ -139,54 +193,50 @@ Voice voice[MAX_VOICES];
 //};
 //
 
-void on_voice_limit(){
-    active_voices--; // last voice
-}
-
-inline float shape_velocity(int vel){
-    // use quadratic shape from
-    // https://www.cs.cmu.edu/~rbd/papers/velocity-icmc2006.pdf
-    // choose r_db ~60, so that r = 1024 -> r_sqrt = 32;
-    float b = 127. / (126. * 32) - 1./126;
-    float m = (1 - b)/127;
-    float amp_sqrt = m * (float)vel + b;
-    return amp_sqrt * amp_sqrt;
-}
-
-inline void set_envelope(Envelope *env,
-                         float a_ms,
-                         float d_ms,
-                         float s,
-                         float r_ms){
-    env->attack = MS(a_ms);
-    env->decay = MS(d_ms);
-    env->sustain = s;
-    env->release = MS(r_ms);
-}
+//void on_voice_limit(){
+//    active_voices--; // last voice
+//}
+//
+//inline float shape_velocity(int vel){
+//    // use quadratic shape from
+//    // https://www.cs.cmu.edu/~rbd/papers/velocity-icmc2006.pdf
+//    // choose r_db ~60, so that r = 1024 -> r_sqrt = 32;
+//    float b = 127. / (126. * 32) - 1./126;
+//    float m = (1 - b)/127;
+//    float amp_sqrt = m * (float)vel + b;
+//    return amp_sqrt * amp_sqrt;
+//}
+//
+//inline void set_envelope(Envelope *env,
+//                         float a_ms,
+//                         float d_ms,
+//                         float s,
+//                         float r_ms){
+//    env->attack = MS(a_ms);
+//    env->decay = MS(d_ms);
+//    env->sustain = s;
+//    env->release = MS(r_ms);
+//}
 
 void on_new_note(int note, int vel){
 //    if (active_voices == MAX_VOICES) on_voice_limit();
 //
 //    int idx = active_voices++;
-    int idx = 0; // monophonic
-    float freq = midi_to_freq(note);
-    voice[idx].velocity = shape_velocity(vel);
-    voice[idx].frequency = freq;
-    voice[idx].elapsed_samples = 0;
-    set_envelope(&(voice[idx].amplitude_env),
-                 50,120,0.6f, 200);
-    set_envelope(&(voice[idx].filter_env),
-                 50,120,0.6f, 200);
-    active_voices = 1;
+//    int idx = 0; // monophonic
+//    float freq = midi_to_freq(note);
+//    voice[idx].velocity = shape_velocity(vel);
+//    voice[idx].frequency = freq;
+//    voice[idx].elapsed_samples = 0;
+//    set_envelope(&(voice[idx].amplitude_env),
+//                 50,120,0.6f, 200);
+//    set_envelope(&(voice[idx].filter_env),
+//                 50,120,0.6f, 200);
+//    active_voices = 1;
 
 }
 
 
 void midiMessageCallback(MidiChannelMessage message, void* arg){
-//    if(arg != NULL){
-//        rt_printf("Message from midi port %s ", (const char*) arg);
-//    }
-//    message.prettyPrint();
     if (message.getType() == kmmNoteOn){
         int note = message.getDataByte(0);
         int vel = message.getDataByte(1);
@@ -226,87 +276,92 @@ float sample_osc(float phase, float freq){
     }
     return out;
 }
-inline float envelope_value(float t, Envelope* env){
-    float lambda = t - env->attack;
-    if (lambda < 0){
-        return 1 - lambda / env->attack;
-    } else if (lambda < env->decay){
-        float s = lambda / env->decay;
-        return (1 - s) + s * env->sustain;
-    }
-    return env->sustain;
+//inline float envelope_value(float t, Envelope* env){
+//    float lambda = t - env->attack;
+//    if (lambda < 0){
+//        return 1 - lambda / env->attack;
+//    } else if (lambda < env->decay){
+//        float s = lambda / env->decay;
+//        return (1 - s) + s * env->sustain;
+//    }
+//    return env->sustain;
+//}
+//
+//inline float apply_filter(float sample, Filter* filter){
+//
+//    float cutoff = 2 * tanf_neon(filter->cutoff * sample_period / 2) / sample_period;
+//    float r = fminf(fmaxf(1 - filter->resonance, -1 + FLT_MIN), 0);
+//    float g = cutoff * sample_period / 2;
+//    float g1 = 2 * r + g;
+//    float d = 1.0f/(1 + g1 * g1);
+//    float s1 = filter->s1;
+//    float s2 = filter->s2;
+//    float hp = (sample - g1 * s1 -  s2) * d;
+//    float v1 = hp * g;
+//    float bp = v1 + filter->s1;
+//    s1 = bp + v1;
+//    float v2 = g * bp;
+//    float lp = v2 + s2;
+//    s2 = lp + v2;
+//    filter->s1 = s1;
+//    filter->s2 = s2;
+//    return lp;
+//}
+//
+
+Oscillators oscillators {0};
+SampleBuffers first_buffers {0};
+SampleBuffers second_buffers {0};
+MixSpec osc_mixer {0};
+MixSpec voice_mixer {0};
+
+void play_voices_into_buffer(SampleBuffers out_buffer){
+
+    write_oscillators_into_buffer(oscillators, first_buffers);
+    mix_buffers(osc_mixer, first_buffers, second_buffers);
+    //    apply_filter_do_buffers()
+    mix_buffers(voice_mixer, second_buffers, out_buffer);
+
 }
 
-inline float apply_filter(float sample, Filter* filter){
+int setup(BelaContext* context, void* userData){
+        midi.readFrom(midi_port);
+        midi.enableParser(true);
+        midi.getParser()->setCallback(midiMessageCallback, (void*) midi_port);
+        midi.getParser()->setSysexCallback(sysexCallback, (void*) midi_port);
+        sample_period = 1/context->audioSampleRate;
+        sample_rate = context->audioSampleRate;
+        channels = context->audioOutChannels;
 
-    float cutoff = 2 * tanf_neon(filter->cutoff * sample_period / 2) / sample_period;
-    float r = fminf(fmaxf(1 - filter->resonance, -1 + FLT_MIN), 0);
-    float g = cutoff * sample_period / 2;
-    float g1 = 2 * r + g;
-    float d = 1.0f/(1 + g1 * g1);
-    float s1 = filter->s1;
-    float s2 = filter->s2;
-    float hp = (sample - g1 * s1 -  s2) * d;
-    float v1 = hp * g;
-    float bp = v1 + filter->s1;
-    s1 = bp + v1;
-    float v2 = g * bp;
-    float lp = v2 + s2;
-    s2 = lp + v2;
-    filter->s1 = s1;
-    filter->s2 = s2;
-    return lp;
+        int buffersize = max(2, MAX_VOICES) * context->periodSize
+                          * sizeof(float);
+
+        first_buffers.buffers = (float*) malloc(buffersize);
+        first_buffers.buffer_length = buffersize;
+
+        second_buffers.buffers = (float*) malloc(buffersize);
+        second_buffers.buffer_length = buffersize;
 }
-
-void play_voice_into_buffer(float* buffer,
-                            int n_samples,
-                            Voice * this_voice){
-    float vel = this_voice->velocity;
-    float phase;
-    int sample_no = this_voice->elapsed_samples;
-    float t = sample_period * (float) sample_no;
-    for (int i=0; i< n_samples; ++i){
-        phase = phase_of(sample_no + i, this_voice->frequency);
-        float sample = sample_osc(phase, this_voice->frequency);
-        float amp_env = envelope_value(t, &this_voice->amplitude_env);
-        // float flt_env = envelope_value(t, &this_voice->filter_env);
-        sample = apply_filter(sample, &this_voice->filter);
-
-        buffer[i] += amp_env * sample;
-        t += sample_period;
-    }
-    this_voice->elapsed_samples += n_samples;
-}
-
-
-bool setup(BelaContext* context, void* userData){
-    midi.readFrom(midi_port);
-    midi.enableParser(true);
-    midi.getParser()->setCallback(midiMessageCallback, (void*) midi_port);
-    midi.getParser()->setSysexCallback(sysexCallback, (void*) midi_port);
-    sample_period = 1/context->audioSampleRate;
-    sample_rate = context->audioSampleRate;
-    return true;
-}
-
 
 void render(BelaContext* context, void* userData){
-    float buffer[context->audioFrames];
-    memset(buffer, 0, context->audioFrames * sizeof(float));
 
-    for (int i = 0; i < active_voices; ++i){
-        play_voice_into_buffer(buffer,context->audioFrames, voice + i);
-    }
+    memset(context->audioFrames, 0, context->audioFrames* context->audioOutChannels * sizeof(float));
 
+    // process midi queue
 
-    for(unsigned int n = 0; n < context->audioFrames; ++n) {
-        for (unsigned int ch = 0; ch < context->audioOutChannels; ++ch){
-            audioWrite(context, n, ch, buffer[n]);
-        }
-    }
+    SampleBuffers out_buffer = {
+            .buffer_length=context->audioFrames,
+            .stride=context->audioOutChannels,
+            .buffers=context->analogOut,
+            .data= nullptr
+    };
+    play_voices_into_buffer(out_buffer);
+
 }
 
 void cleanup(BelaContext* context, void* userData){
+    if (first_buffers.buffers) free(first_buffers.buffers);
+    if (second_buffers.buffers) free (first_buffers.buffers)
 
 }
 
