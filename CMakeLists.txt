@@ -1,7 +1,21 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.7)
 project(bass_synth)
 
-set(CMAKE_CXX_STANDARD 17)
-include_directories(external/include)
+set(CMAKE_CXX_STANDARD 14)
 
-add_executable(bass_synth main.cpp)
+file(GLOB SOURCES src/*.cpp)
+
+add_executable(bass_synth ${SOURCES})
+target_include_directories(bass_synth
+        PUBLIC
+        include
+        external/include)
+
+
+target_link_libraries(bass_synth
+        bela
+        belaextra
+        rt
+)
+
+

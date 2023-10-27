@@ -27,10 +27,10 @@ We can also write MIDI messages, by sending a sequence of bytes with
 `writeOutput()`.
 */
 
-#include <Bela.h>
-#include <libraries/Midi/Midi.h>
-#include <stdlib.h>
+#include "Bela.h"
+#include "libraries/Midi/Midi.h"
 #include <cmath>
+#include <stdlib.h>
 
 float gFreq;
 float gPhaseIncrement = 0;

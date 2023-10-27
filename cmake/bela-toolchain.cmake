@@ -3,61 +3,59 @@ set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR arm)
 
 set(triple arm-linux-gnueabihf)
-set(CC  /usr/local/linaro/arm-bela-linux-gnueabihf/bin/arm-linux-gnueabihf-)
 
-set(CMAKE_C_COMPILER            ${CC}gcc)
-set(CMAKE_CXX_COMPILER          ${CC}g++)
-set(CMAKE_AR                    ${CC}ar)
-set(CMAKE_ASM_COMPILER          ${CC}as)
-set(CMAKE_LINKER                ${CC}ld)
-set(CMAKE_OBJCOPY               ${CC}objcopy)
-set(CMAKE_RANLIB                ${CC}ranlib)
-set(CMAKE_SIZE                  ${CC}size)
-set(CMAKE_STRIP                 ${CC}strip)
+set(CMAKE_CXX_STANDARD  17)
+set(CMAKE_C_COMPILER            /usr/bin/clang-16)
+set(CMAKE_CXX_COMPILER          /usr/bin/clang++-16)
+
 set(CMAKE_TRY_COMPILE_TARGET_TYPE  STATIC_LIBRARY)
 set(CMAKE_C_COMPILER_TARGET ${triple})
 set(CMAKE_CXX_COMPILER_TARGET ${triple})
+set(DEFAULT_SYSROOT /mnt/bela)
+# set(CMAKE_AR llvm-ar)
 
-set(XC_ROOT /usr/local/linaro/BelaSysroot)
+set(BELA_ROOT ${DEFAULT_SYSROOT}/root/Bela)
+set(GCC_TOOLCHAIN  /usr/local/linaro/arm-bela-linux-gnueabihf)
+set(GCC_TOOLCHAIN_VERSION  6.3.1)
+set(CMAKE_CROSSCOMPILING                  TRUE)
 
-set(CMAKE_CROSSCOMPILING                    ON)
-set(CMAKE_FIND_ROOT_PATH                  ${XC_ROOT})
+set(CMAKE_FIND_ROOT_PATH                  ${DEFAULT_SYSROOT})
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM     NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY     BOTH)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE     BOTH)
+set(CMAKE_SYSROOT                           ${DEFAULT_SYSROOT})
+set(CMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN     ${GCC_TOOLCHAIN})
+set(CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN   ${GCC_TOOLCHAIN})
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 
-set(XC_INCLUDE /usr/local/linaro/BelaSysroot/usr/lib/gcc/arm-linux-gnueabihf/6.3.0/include/)
-set(XC_SYSROOT ${XC_ROOT})
-set(BELA_ROOT ../Bela/)
-
-
-include_directories(
-        BEFORE SYSTEM ${XC_INCLUDE}
-        ${XC_ROOT}/usr/include
-        ${XC_SYSROOT}/root/Bela/include
-        ${XC_SYSROOT}/root/Bela
-        ${BELA_ROOT}
-
+set(CMAKE_BUILD_RPATH
+        ${DEFAULT_SYSROOT}/lib
+        ${DEFAULT_SYSROOT}/lib/${triple}
+        ${DEFAULT_SYSROOT}/usr/lib/${triple}
+        ${DEFAULT_SYSROOT}/usr/xenomai/lib
+        ${DEFAULT_SYSROOT}/usr/lib
 )
 
-set(BELA_LINK_FLAGS "${BELA_LINK_FLAGS} -L${XC_SYSROOT}/root/Bela/lib -L${XC_SYSROOT}/usr/local/lib -Wl,--no-as-needed -L${XC_SYSROOT}/usr/xenomai/lib" )
-set(BELA_LINK_FLAGS "${BELA_LINK_FLAGS} -lprussdrv -lasound -lseasocks -lNE10 -lmathneon")
-set(BELA_LINK_FLAGS "${BELA_LINK_FLAGS} -l:libbela.a -l:libbelaextra.a")
-set(BELA_LINK_FLAGS "${BELA_LINK_FLAGS} -L${XC_SYSROOT}/usr/lib/gcc/arm-linux-gnueabihf/6.3.0  -B${XC_SYSROOT}/usr/lib/gcc/arm-linux-gnueabihf/6.3.0  -latomic")
-set(BELA_LINK_FLAGS "${BELA_LINK_FLAGS} -Wl,-rpath-link,${XC_SYSROOT}/lib/arm-linux-gnueabihf")
 
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${BELA_LINK_FLAGS}")
-set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} ${BELA_LINK_FLAGS}")
-set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${BELA_LINK_FLAGS}")
+set(CMAKE_CXX_FLAGS "-stdlib=libstdc++ --gcc-toolchain=${GCC_TOOLCHAIN} -march=armv7-a -mtune=cortex-a8 -mfloat-abi=hard -mfpu=neon -ftree-vectorize -ffast-math")
 
+set(CMAKE_CXX_LINK_FLAGS
+        "-fuse-ld=${GCC_TOOLCHAIN}/bin/${triple}-ld -stdlib=libstdc++ --gcc-toolchain=${GCC_TOOLCHAIN}"
+)
 
-# possibily useful?
-# set(CMAKE_STAGING_PREFIX /home/devel/stage)
-# set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
-# set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
-# set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
-# set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+link_directories(
+    ${DEFAULT_SYSROOT}/usr/xenomai/lib
+    ${BELA_ROOT}/lib
+)
+
+link_libraries(
+        cobalt
+        modechk
+        pthread
+        rt
+        mathneon
+)
 
 
 
