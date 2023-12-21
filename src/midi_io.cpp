@@ -2,66 +2,51 @@
 // Created by Pete on 8/07/2023.
 //
 #include "midi_io.h"
-
+#include <messages.hpp>
+#include "../external/include/libraries/Midi/Midi.h"
 
 #define MIDI_BUFFER_SIZE 512
 
+extern MidiInterface midiInterface;
 
-MidiInterface midiInterface;
 const char* midi_port = "hw:1,0,0";
 
 
-//void on_note_on(midi_byte_t note, midi_byte_t velocity){
-//    MidiMessage msg{0, note, velocity};
-//    if (midiInterface.queue.send( (char*) &msg, sizeof (MidiMessage)) < 0){
-//        fprintf(stderr, "Failed to send midi message");
-//    }
-//    printf("note: %d vel %d\n", note, velocity);
-//}
-//
-//void on_note_off(midi_byte_t note){
-//    MidiMessage msg{0, note, 0};
-//    if (midiInterface.queue.send( (char*) &msg, sizeof (MidiMessage)) < 0){
-//        fprintf(stderr, "Failed to send midi message");
-//    }
-//}
+void on_note_event(uint8_t channel, midi_byte_t note, midi_byte_t velocity){
+
+    ParameterValue event = {0};
+    event.noteEvent.note = note;
+    event.noteEvent.vel = velocity;
 
 
-//void midiMessageCallback(MidiChannelMessage message, void* arg){
-//
-//    midi_byte_t velocity;
-//
-//
-//    switch (message.getType()) {
-//        case kmmNoteOn:
-//            velocity = message.getDataByte(1);
-//            if (velocity == 0) {
-//                on_note_off(message.getDataByte(0));
-//            } else {
-//                on_note_on(message.getDataByte(0), velocity);
-//            }
-//            break;
-//        case kmmNoteOff:
-//            on_note_off(message.getDataByte(0));
-//            break;
-//        default:
-//            break;
-//    }
-//}
+    SynthMessage msg{
+        .destination = Global,
+        .parameter = NoteEvents,
+        .channel = channel,
+        .value = event
+    };
+    if (midiInterface.send(msg)){
+        fprintf(stderr, "Failed to send midi message");
+    }
+}
+
+
 void midiMessageCallback(MidiChannelMessage message, void* arg){
     switch (message.getType()) {
         case kmmNoteOff:
+            on_note_event(message.getChannel(), message.getDataByte(0), 0);
+            break;
         case kmmNoteOn:
+            on_note_event(message.getChannel(), message.getDataByte(0), message.getDataByte(1) );
+            break;
         case kmmControlChange:
         case kmmPitchBend:
         case kmmPolyphonicKeyPressure:
-            midiInterface.queue.send( (char*) &message, sizeof(MidiChannelMessage));
-            break;
-
-//        kmmProgramChange,
-//        kmmChannelPressure,
-//        ,
-        default:
+        case kmmProgramChange:
+        case kmmChannelPressure:
+        case kmmSystem:
+        case kmmNone:
+        case kmmAny:
             break;
     }
 }
@@ -73,7 +58,7 @@ bool MidiInterface::setup(){
     midi.getParser()->setCallback(midiMessageCallback, (void*) midi_port);
 
 
-    if (queue.setup("/bela/midi_in", sizeof(MidiChannelMessage), 24, false, false) < 0 ){
+    if (queue.setup("/bela/midi_in", sizeof(SynthMessage), 24, false, false) < 0 ){
         fprintf(stderr, "Error: unable to initialise midi queue");
         return false;
     }
@@ -81,6 +66,12 @@ bool MidiInterface::setup(){
 }
 
 
-bool MidiInterface::read_rt(MidiChannelMessage& msg){
+bool MidiInterface::read_rt(SynthMessage& msg){
     return (queue.receive((char*) &msg, 0) > 0);
-};
+}
+
+bool MidiInterface::send(const SynthMessage& msg) {
+     return  (queue.send( (char*) &msg, sizeof (msg)) < 0);
+}
+
+

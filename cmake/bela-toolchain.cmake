@@ -4,7 +4,7 @@ set(CMAKE_SYSTEM_PROCESSOR arm)
 
 set(triple arm-linux-gnueabihf)
 
-set(CMAKE_CXX_STANDARD  17)
+set(CMAKE_CXX_STANDARD  14)
 set(CMAKE_C_COMPILER            /usr/bin/clang-16)
 set(CMAKE_CXX_COMPILER          /usr/bin/clang++-16)
 
@@ -38,11 +38,9 @@ set(CMAKE_BUILD_RPATH
 )
 
 
-set(CMAKE_CXX_FLAGS "-stdlib=libstdc++ --gcc-toolchain=${GCC_TOOLCHAIN} -march=armv7-a -mtune=cortex-a8 -mfloat-abi=hard -mfpu=neon -ftree-vectorize -ffast-math")
+set(CMAKE_CXX_FLAGS "-stdlib=libstdc++ --gcc-toolchain=${GCC_TOOLCHAIN} -march=armv7-a -mtune=cortex-a8 -mfloat-abi=hard -mfpu=neon -ftree-vectorize -ffast-math -fno-exceptions")
 
-set(CMAKE_CXX_LINK_FLAGS
-        "-fuse-ld=${GCC_TOOLCHAIN}/bin/${triple}-ld -stdlib=libstdc++ --gcc-toolchain=${GCC_TOOLCHAIN}"
-)
+set(CMAKE_CXX_LINK_FLAGS "-fuse-ld=${GCC_TOOLCHAIN}/bin/${triple}-ld -stdlib=libstdc++ --gcc-toolchain=${GCC_TOOLCHAIN}")
 
 link_directories(
     ${DEFAULT_SYSROOT}/usr/xenomai/lib

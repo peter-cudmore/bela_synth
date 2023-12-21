@@ -1,12 +1,8 @@
-//
-// Created by Pete on 8/07/2023.
-//
+#pragma once
 
-#ifndef BASS_SYNTH_MIDI_IO_H
-#define BASS_SYNTH_MIDI_IO_H
 #include <DataFifo.h>
 #include <libraries/Midi/Midi.h>
-//
+
 //enum MidiEventType {
 //    NoteOff = 0b10000000,
 //    NoteOn = 0b10010000,
@@ -41,16 +37,17 @@
 //
 //};
 
+#include <messages.hpp>
 
 struct MidiInterface {
     Midi midi;
     DataFifo queue;
     bool setup();
-    bool read_rt(MidiChannelMessage& msg);
+    bool read_rt(SynthMessage& msg);
+    bool send(const SynthMessage& msg);
 };
 
 
 
 extern MidiInterface midiInterface;
 
-#endif//BASS_SYNTH_MIDI_IO_H

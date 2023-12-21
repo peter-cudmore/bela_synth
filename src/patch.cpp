@@ -1,36 +1,41 @@
-//
+
+/*//
 // Created by Pete on 9/09/2023.
+
 //
 #include "patch.h"
 
-NLOHMANN_JSON_SERIALIZE_ENUM(OscillatorType, {
-                                                     {Sine, "sin"},
-                                                     {Saw, "saw"},
-                                                     {Square, "sqr"},
-                                             })
+// midi cc change -> update patch
+// ui change      -> update patch
 
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(OscillatorParams, type, coarse, fine, gain)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(EnvelopeParams, attack, decay, sustain, release)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(FilterParams, cutoff, resonance, adsr, cutoff_envelope, resonance_envelope)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(MixerParams, gain, adsr)
+// update patch   -> update ui
+//                -> update kernel
 
-void to_json(json& j, const Patch& p){
+
+
+#define STRINGIFY(x) #x
+#define TO_STRING(x) STRINGIFY(x)
+#define TO_JSON_ACCESSOR(x)  {TO_STRING(x), p.x}
+#define TO_JSON_BOUNDS(x) {TO_STRING(x), p.x.bounds()}
+
+#define FROM_JSON_ACCESSOR(x) j.at(TO_STRING(x)).get_to(p.x);
+
+void to_json(json &j, const Patch &p) {
     j = json{
-            {"osc_1", p.osc_1},
-            {"osc_2", p.osc_2},
-            {"osc_3", p.osc_3},
-            {"filter", p.filter},
-            {"mixer", p.mixer}
+        #define ENTRY(CC, SECTION, NAME, KLASS, VALUE) TO_JSON_ACCESSOR(SECTION##_##NAME),
+            CONTROL_TABLE
+        #undef ENTRY
     };
 }
 
-void from_json(const json& j, Patch &p) {
-    j.at("osc_1").get_to(p.osc_1);
-    j.at("osc_2").get_to(p.osc_2);
-    j.at("osc_3").get_to(p.osc_3);
-    j.at("filter").get_to(p.filter);
-    j.at("mixer").get_to(p.mixer);
+void from_json(const json& j, Patch& p) {
+    #define ENTRY(CC, SECTION, NAME, KLASS, VALUE) FROM_JSON_ACCESSOR(SECTION##_##NAME)
+        CONTROL_TABLE
+    #undef ENTRY
 }
+
+
+
 
 Patch load_from_file(std::string filename){
     std::ifstream f(filename);
@@ -45,6 +50,6 @@ void save_to_file(const Patch& patch, const std::string& filename){
     json j = patch;
     f << std::setw(4) << j << std::endl;
 
-
 }
 
+*/
